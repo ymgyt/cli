@@ -24,7 +24,7 @@ type Command struct {
 }
 
 func (c *Command) Execute(ctx context.Context) {
-	c.ExecuteWithArgs(ctx, os.Args)
+	c.ExecuteWithArgs(ctx, os.Args[1:])
 }
 
 func (c *Command) ExecuteWithArgs(ctx context.Context, args []string) {
