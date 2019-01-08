@@ -2,54 +2,80 @@ package examples_test
 
 import (
 	"context"
-	"fmt"
+	"os"
+	"text/template"
+	"time"
 
 	"github.com/ymgyt/cli"
 )
 
-func ExampleCommand_Execute() {
-	var label string
-	var enable bool
-	var num int
+func ExampleCommand_ExecuteWithArgs() {
+	opts := struct {
+		Export, Verbose, Recursive bool
+		Label, Selector, Sort      string
+		Max, Min                   int
+		Interval                   time.Duration
+		Outs                       []string
+	}{}
 
-	root := &cli.Command{Name: "root"}
-	sub := &cli.Command{Name: "sub"}
+	app := &cli.Command{
+		Name: "app",
+	}
+
+	sub := &cli.Command{
+		Name: "sub",
+	}
+
 	subsub := &cli.Command{
 		Name: "subsub",
-		Run: func(ctx context.Context, cmd *cli.Command, args []string) {
-			fmt.Printf("label: %s, enable: %v, num: %d", label, enable, num)
+		Run: func(_ context.Context, _ *cli.Command, _ []string) {
+			err := template.Must(template.New("").Parse(`
+export:    {{.Export}}
+verbose:   {{.Verbose}}
+recursive: {{.Recursive}}
+label:     {{.Label}}
+selector:  {{.Selector}}
+sort:      {{.Sort}}
+max:       {{.Max}}
+min:       {{.Min}}
+interval:  {{.Interval}}
+outs:      {{.Outs}}`)).Execute(os.Stdout, &opts)
+			if err != nil {
+				panic(err)
+			}
 		},
 	}
 
-	root.AddCommand(sub)
-	sub.AddCommand(subsub)
-
 	err := subsub.Options().
-		Add(&cli.StringOpt{
-			Var:         &label,
-			Long:        "label",
-			Short:       "l",
-			Default:     "app",
-			Description: "target label",
-			Aliases:     []string{"tag"},
-		}).
-		Add(&cli.BoolOpt{
-			Var:         &enable,
-			Long:        "enable",
-			Short:       "e",
-			Description: "bool flag",
-		}).
-		Add(&cli.IntOpt{
-			Var:         &num,
-			Long:        "num",
-			Short:       "n",
-			Description: "int flag",
-		}).Err
+		Add(&cli.BoolOpt{Var: &opts.Export, Long: "export"}).
+		Add(&cli.BoolOpt{Var: &opts.Verbose, Long: "verbose", Short: "v"}).
+		Add(&cli.BoolOpt{Var: &opts.Recursive, Long: "recursive", Short: "R"}).
+		Add(&cli.StringOpt{Var: &opts.Label, Long: "label"}).
+		Add(&cli.StringOpt{Var: &opts.Selector, Long: "selector", Short: "s"}).
+		Add(&cli.StringOpt{Var: &opts.Sort, Long: "sort", Default: "desc"}).
+		Add(&cli.IntOpt{Var: &opts.Max, Long: "max", Aliases: []string{"limit"}}).
+		Add(&cli.IntOpt{Var: &opts.Min, Long: "min", Default: 10}).
+		Add(&cli.DurationOpt{Var: &opts.Interval, Long: "interval"}).
+		Add(&cli.StringsOpt{Var: &opts.Outs, Long: "outs"}).Err
+
 	if err != nil {
 		panic(err)
 	}
 
-	root.ExecuteWithArgs(context.Background(), []string{"sub", "subsub", "--label", "gopher", "--enable", "-n=5"})
+	app.
+		AddCommand(sub.AddCommand(subsub)).
+		ExecuteWithArgs(context.Background(), []string{
+			"--export", "--label=app", "--outs=aaa.yml", "sub", "-vR", "-s", "match", "subsub", "--limit", "100", "--interval=10s", "--outs=bbb.yml"})
 
-	// Output: label: gopher, enable: true, num: 5
+	// Output:
+	// export:    true
+	// verbose:   true
+	// recursive: true
+	// label:     app
+	// selector:  match
+	// sort:      desc
+	// max:       100
+	// min:       10
+	// interval:  10s
+	// outs:      [aaa.yml bbb.yml]
 }

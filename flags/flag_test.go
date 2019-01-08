@@ -2,7 +2,9 @@ package flags_test
 
 import (
 	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/ymgyt/cli/flags"
 )
 
@@ -61,6 +63,38 @@ func TestBoolVar(t *testing.T) {
 		got, want := bool(vb), true
 		if got != want {
 			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+}
+
+func TestStringSliceVar_Set(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		var ss []string
+		ssv := flags.StringSliceVar(ss)
+		pssv := &ssv
+		wants := []string{"aaa", "bbb", "ccc"}
+		for _, want := range wants {
+			if err := pssv.Set(want); err != nil {
+				t.Fatalf("StringSliceVar.Set(%s) %v", want, err)
+			}
+		}
+		if diff := cmp.Diff([]string(ssv), wants); diff != "" {
+			t.Errorf("(-got +want)\n%s", diff)
+		}
+	})
+}
+
+func TestDurationVar_Set(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		var d time.Duration
+		dv := flags.DurationVar(d)
+		pdv := &dv
+		want := time.Second
+		if err := pdv.Set("1s"); err != nil {
+			t.Fatalf("DurationVar.Set(%s) %v", "1s", err)
+		}
+		if time.Duration(dv) != want {
+			t.Errorf("got %v, want %v", time.Duration(dv), want)
 		}
 	})
 }
