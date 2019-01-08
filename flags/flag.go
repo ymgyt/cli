@@ -1,15 +1,50 @@
 package flags
 
 import (
+	"errors"
 	"strconv"
+	"time"
+)
+
+var (
+	ErrMulitipleTimesSet = errors.New("multiple times set")
 )
 
 type Flag struct {
-	Long        string
-	Short       string
-	Aliases     []string
-	Var         Var
-	Description string
+	Long                  string
+	Short                 string
+	Aliases               []string
+	Var                   Var
+	Description           string
+	IsSet                 bool
+	Raw                   string
+	AllowMultipleTimesSet bool
+}
+
+func (f Flag) HasName(name string) bool {
+	if f.Long == name || f.Short == name {
+		return true
+	}
+	for _, alias := range f.Aliases {
+		if alias == name {
+			return true
+		}
+	}
+	return false
+}
+
+func (f *Flag) Set(s string) error {
+	if f.IsSet && !f.AllowMultipleTimesSet {
+		return ErrMulitipleTimesSet
+	}
+	f.IsSet = true
+	f.Raw = s
+	return f.Var.Set(s)
+}
+
+func (f *Flag) IsBool() bool {
+	_, isBool := f.Var.(BooleanVar)
+	return isBool
 }
 
 type Var interface {
@@ -52,5 +87,23 @@ func (bv *BoolVar) Set(s string) error {
 
 func (bv *BoolVar) SetBool(b bool) error {
 	*bv = BoolVar(b)
+	return nil
+}
+
+type StringSliceVar []string
+
+func (sv *StringSliceVar) Set(s string) error {
+	*sv = append(*sv, s)
+	return nil
+}
+
+type DurationVar time.Duration
+
+func (dv *DurationVar) Set(s string) error {
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return err
+	}
+	*dv = DurationVar(d)
 	return nil
 }
