@@ -11,7 +11,11 @@ jobs:
       - checkout
       - run:
           name: run test
-          command: go test ./...
+          command: go test -race -coverprofile=coverage.txt ./...
+      - run:
+          name: upload coverage
+          command: bash <(curl -s https://codecov.io/bash)
+
 
 workflow:
   version: 2
