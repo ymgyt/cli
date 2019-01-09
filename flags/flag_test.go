@@ -8,16 +8,60 @@ import (
 	"github.com/ymgyt/cli/flags"
 )
 
+func TestFlag_HasName(t *testing.T) {
+	t.Run("aliases work", func(t *testing.T) {
+		f := &flags.Flag{Long: "label", Aliases: []string{"alias"}}
+		if !f.HasName("alias") {
+			t.Errorf("Flag.HasName() does not work by aliases")
+		}
+	})
+
+	t.Run("does not has name", func(t *testing.T) {
+		f := &flags.Flag{Long: "label", Aliases: []string{"alias"}}
+		if f.HasName("noone") {
+			t.Error("Flag.HasName() return true but, want false")
+		}
+	})
+}
+
+func TestFlag_Set(t *testing.T) {
+	t.Run("Set correctly recored", func(t *testing.T) {
+		var label string
+		v := (*flags.StringVar)(&label)
+		f := &flags.Flag{Long: "label", Var: v}
+		if err := f.Set("app"); err != nil {
+			t.Fatalf("Flag.Set() %v", err)
+		}
+		if !f.IsSet {
+			t.Errorf("Flag.Set() should be recoreded")
+		}
+		if f.Raw != "app" {
+			t.Errorf("Flag.Set() parameter should be recorded")
+		}
+	})
+
+	t.Run("multiple set return err", func(t *testing.T) {
+		var label string
+		v := (*flags.StringVar)(&label)
+		f := &flags.Flag{Long: "label", Var: v, AllowMultipleTimesSet: false}
+		if err := f.Set("app"); err != nil {
+			t.Errorf("Flag.Set() %v", err)
+		}
+		err := f.Set("app")
+		if err != flags.ErrMulitipleTimesSet {
+			t.Errorf("multiple set should return ErrMulitipleTimesSet if now allowd")
+		}
+	})
+}
+
 func TestStringVar_Set(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		var s string
-		sv := flags.StringVar(s)
-		psv := &sv
-		want := "value"
-		if err := psv.Set(want); err != nil {
-			t.Fatalf("StringVar.Set(%s) %v", want, err)
+		sv := (*flags.StringVar)(&s)
+		if err := sv.Set("value"); err != nil {
+			t.Fatalf("StringVar.Set(%s) %v", "value", err)
 		}
-		got := string(sv)
+		got, want := s, "value"
 		if got != want {
 			t.Errorf("got %s, want %s", got, want)
 		}
@@ -25,76 +69,149 @@ func TestStringVar_Set(t *testing.T) {
 }
 
 func TestIntVar_Set(t *testing.T) {
-	t.Run("valid num", func(t *testing.T) {
+	intVar := func() (*int, *flags.IntVar) {
 		var i int
-		iv := flags.IntVar(i)
-		piv := &iv
-		if err := piv.Set("100"); err != nil {
+		iv := (*flags.IntVar)(&i)
+		return &i, iv
+	}
+	t.Run("valid num", func(t *testing.T) {
+		pi, iv := intVar()
+		if err := iv.Set("100"); err != nil {
 			t.Fatalf("IntVar.Set(100) %v", err)
 		}
-		got, want := int(iv), 100
+		got, want := *pi, 100
 		if got != want {
 			t.Errorf("got %d, want %d", got, want)
+		}
+	})
+	t.Run("invalid num", func(t *testing.T) {
+		_, iv := intVar()
+		if err := iv.Set("invalid"); err == nil {
+			t.Error("want error, but no error")
+		}
+	})
+}
+
+func TestFloatVar_set(t *testing.T) {
+	floatVar := func() (*float64, *flags.FloatVar) {
+		var f float64
+		fv := (*flags.FloatVar)(&f)
+		return &f, fv
+	}
+	t.Run("simple", func(t *testing.T) {
+		pf, fv := floatVar()
+		if err := fv.Set("123.456"); err != nil {
+			t.Fatalf("FloatVar.Set(123.456) %v", err)
+		}
+		got, want := *pf, float64(123.456)
+		if got != want {
+			t.Errorf("got %f, want %f", got, want)
+		}
+	})
+	t.Run("invalid", func(t *testing.T) {
+		_, fv := floatVar()
+		if err := fv.Set("invalid"); err == nil {
+			t.Error("want error, but no error")
 		}
 	})
 }
 
 func TestBoolVar(t *testing.T) {
-	t.Run("Set", func(t *testing.T) {
+	boolVar := func() (*bool, *flags.BoolVar) {
 		var b bool
-		vb := flags.BoolVar(b)
-		pvb := &vb
-		if err := pvb.Set("true"); err != nil {
+		vb := (*flags.BoolVar)(&b)
+		return &b, vb
+	}
+	t.Run("Set", func(t *testing.T) {
+		pv, bv := boolVar()
+		if err := bv.Set("true"); err != nil {
 			t.Fatalf("BoolVar.Set(\"true\") %v", err)
 		}
-		got, want := bool(vb), true
+		got, want := *pv, true
 		if got != want {
 			t.Errorf("got %v, want %v", got, want)
 		}
 	})
-
 	t.Run("SetBool", func(t *testing.T) {
-		var b bool
-		vb := flags.BoolVar(b)
-		pvb := &vb
-		if err := pvb.SetBool(true); err != nil {
+		pb, bv := boolVar()
+		if err := bv.SetBool(true); err != nil {
 			t.Fatalf("BoolVar.Set(true) %v", err)
 		}
-		got, want := bool(vb), true
+		got, want := *pb, true
 		if got != want {
 			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+	t.Run("invalid", func(t *testing.T) {
+		_, bv := boolVar()
+		if err := bv.Set("invalid"); err == nil {
+			t.Error("want error, but no error")
 		}
 	})
 }
 
-func TestStringSliceVar_Set(t *testing.T) {
+func TestStringsVar_Set(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		var ss []string
-		ssv := flags.StringSliceVar(ss)
-		pssv := &ssv
+		ssv := (*flags.StringsVar)(&ss)
 		wants := []string{"aaa", "bbb", "ccc"}
 		for _, want := range wants {
-			if err := pssv.Set(want); err != nil {
-				t.Fatalf("StringSliceVar.Set(%s) %v", want, err)
+			if err := ssv.Set(want); err != nil {
+				t.Fatalf("StringsVar.Set(%s) %v", want, err)
 			}
 		}
-		if diff := cmp.Diff([]string(ssv), wants); diff != "" {
+		if diff := cmp.Diff(ss, wants); diff != "" {
 			t.Errorf("(-got +want)\n%s", diff)
 		}
 	})
 }
 
-func TestDurationVar_Set(t *testing.T) {
+func TestIntsVar_Set(t *testing.T) {
+	intsVar := func() (*[]int, *flags.IntsVar) {
+		var ns []int
+		nsv := (*flags.IntsVar)(&ns)
+		return &ns, nsv
+	}
 	t.Run("simple", func(t *testing.T) {
+		pns, nsv := intsVar()
+		for _, want := range []string{"10", "100", "1000"} {
+			if err := nsv.Set(want); err != nil {
+				t.Fatalf("IntsVar.Set(%s) %v", want, err)
+			}
+		}
+		got, want := *pns, []int{10, 100, 1000}
+		if diff := cmp.Diff(got, want); diff != "" {
+			t.Errorf("(-got +want)\n%s", diff)
+		}
+	})
+	t.Run("invalid", func(t *testing.T) {
+		_, nsv := intsVar()
+		if err := nsv.Set("invalid"); err == nil {
+			t.Error("want error, gut no error")
+		}
+	})
+}
+
+func TestDurationVar_Set(t *testing.T) {
+	durationVar := func() (*time.Duration, *flags.DurationVar) {
 		var d time.Duration
-		dv := flags.DurationVar(d)
-		pdv := &dv
-		want := time.Second
-		if err := pdv.Set("1s"); err != nil {
+		dv := (*flags.DurationVar)(&d)
+		return &d, dv
+	}
+	t.Run("simple", func(t *testing.T) {
+		pd, dv := durationVar()
+		if err := dv.Set("1s"); err != nil {
 			t.Fatalf("DurationVar.Set(%s) %v", "1s", err)
 		}
-		if time.Duration(dv) != want {
-			t.Errorf("got %v, want %v", time.Duration(dv), want)
+		got, want := *pd, time.Second
+		if got != want {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+	t.Run("invalid", func(t *testing.T) {
+		_, dv := durationVar()
+		if err := dv.Set("invalid"); err == nil {
+			t.Error("want error, gut no error")
 		}
 	})
 }

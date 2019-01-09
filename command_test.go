@@ -3,6 +3,7 @@ package cli_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -16,13 +17,16 @@ func TestCommand_Execute(t *testing.T) {
 	t.Run("root", func(t *testing.T) {
 		execute := false
 		cmd := &cli.Command{
-			Name: "test",
+			Name: "root",
 			Run: func(_ context.Context, _ *cli.Command, args []string) {
 				execute = true
 			},
 		}
 
-		cmd.ExecuteWithArgs(context.Background(), nil)
+		org := os.Args
+		defer func() { os.Args = org }()
+		os.Args = []string{"root"}
+		cmd.Execute(context.Background())
 		if !execute {
 			t.Error("Command.Execute() does not work")
 		}
@@ -62,7 +66,57 @@ func TestCommand_Execute(t *testing.T) {
 		if !execute {
 			t.Error("Command.Execute() does not work")
 		}
+	})
 
+	t.Run("parse error panic", func(t *testing.T) {
+		root := &cli.Command{Name: "root"}
+		var label string
+		root.Options().Add(&cli.StringOpt{Long: "label", Var: &label})
+		defer func() {
+			if err := recover(); err == nil {
+				t.Errorf("parse error should panic")
+			}
+		}()
+		root.ExecuteWithArgs(context.Background(), []string{"--label"})
+	})
+}
+
+func TestCommand_AddCommand(t *testing.T) {
+	t.Run("dupulicate add panic", func(t *testing.T) {
+		root := &cli.Command{Name: "root"}
+		sub1 := &cli.Command{Name: "sub"}
+		sub2 := &cli.Command{Name: "sub"}
+		root.AddCommand(sub1)
+		defer func() {
+			if err := recover(); err == nil {
+				t.Errorf("adding same name command should panic")
+			}
+		}()
+		root.AddCommand(sub2)
+	})
+	t.Run("flag set conflict panic", func(t *testing.T) {
+		var opt1 string
+		var opt2 bool
+		root := &cli.Command{Name: "root"}
+		root.Options().Add(&cli.StringOpt{Var: &opt1, Long: "label"})
+		sub := &cli.Command{Name: "sub"}
+		sub.Options().Add(&cli.BoolOpt{Var: &opt2, Long: "label"})
+		defer func() {
+			if err := recover(); err == nil {
+				t.Errorf("flag set conflict should panic")
+			}
+		}()
+		root.AddCommand(sub)
+	})
+}
+
+func TestCommand_Lookup(t *testing.T) {
+	t.Run("by aliaes", func(t *testing.T) {
+		root := &cli.Command{Name: "root"}
+		found := root.AddCommand(&cli.Command{Name: "sub", Aliases: []string{"alias"}}).Lookup("alias")
+		if found == nil || found.Name != "sub" {
+			t.Errorf("Command.Lookup does not work")
+		}
 	})
 }
 
@@ -114,6 +168,17 @@ func TestCommand_Parse(t *testing.T) {
 			},
 			{
 				input: []string{"-v", "true"},
+				check: func(t *testing.T, root *cli.Command) checkFn {
+					var verbose bool
+					root.Options().Add(&cli.BoolOpt{Var: &verbose, Short: "v"})
+					return func() {
+						checkBool(t, &verbose, "-v", true)
+					}
+				},
+			},
+			{
+				input:  []string{"-v=true", "true"},
+				remain: []string{"true"},
 				check: func(t *testing.T, root *cli.Command) checkFn {
 					var verbose bool
 					root.Options().Add(&cli.BoolOpt{Var: &verbose, Short: "v"})
@@ -233,6 +298,24 @@ func TestCommand_Parse(t *testing.T) {
 					}
 				},
 			},
+			{
+				input:  []string{"-sSLo", "value", "arg"},
+				remain: []string{"arg"},
+				check: func(t *testing.T, root *cli.Command) checkFn {
+					var silent, show, location bool
+					var out string
+					root.Options().Add(&cli.BoolOpt{Var: &silent, Short: "s"}).
+						Add(&cli.BoolOpt{Var: &show, Short: "S"}).
+						Add(&cli.BoolOpt{Var: &location, Short: "L"}).
+						Add(&cli.StringOpt{Var: &out, Short: "o"})
+					return func() {
+						checkBool(t, &silent, "-s", true)
+						checkBool(t, &show, "-S", true)
+						checkBool(t, &location, "-L", true)
+						checkString(t, &out, "-o", "value")
+					}
+				},
+			},
 		}
 
 		for _, tc := range tests {
@@ -348,6 +431,39 @@ func TestCommand_Parse_return_ParseError(t *testing.T) {
 				root.Options().Add(&cli.StringOpt{Var: &label, Long: "label"})
 			},
 		},
+		"-sSo=v type flag not supported": {
+			input: []string{"-sSo=value"},
+			err:   &cli.ParseError{},
+			setup: func(t *testing.T, root *cli.Command) {
+				var s, S bool
+				var o string
+				root.Options().Add(&cli.BoolOpt{Var: &s, Short: "s"}).Add(&cli.BoolOpt{Var: &S, Short: "S"}).Add(&cli.StringOpt{Var: &o, Short: "o"})
+			},
+		},
+		"undefined flag in multi short flags": {
+			input: []string{"-sxS"},
+			err:   &cli.ParseError{},
+			setup: func(t *testing.T, root *cli.Command) {
+				var s, S bool
+				root.Options().Add(&cli.BoolOpt{Var: &s, Short: "s"}).Add(&cli.BoolOpt{Var: &S, Short: "S"})
+			},
+		},
+		"invalid flag value(int)": {
+			input: []string{"--max", "three"},
+			err:   &cli.ParseError{},
+			setup: func(t *testing.T, root *cli.Command) {
+				var max int
+				root.Options().Add(&cli.IntOpt{Var: &max, Long: "max"})
+			},
+		},
+		"invalid flag value(bool)": {
+			input: []string{"--verbose=ok"},
+			err:   &cli.ParseError{},
+			setup: func(t *testing.T, root *cli.Command) {
+				var v bool
+				root.Options().Add(&cli.BoolOpt{Var: &v, Long: "verbose"})
+			},
+		},
 	}
 
 	for name, tc := range tests {
@@ -369,7 +485,9 @@ func TestOptionConfigurator_Add(t *testing.T) {
 	var label string
 	var enable bool
 	var num int
+	var rate float64
 	var files []string
+	var backoffs []int
 	var interval time.Duration
 
 	err := cmd.Options().
@@ -393,11 +511,22 @@ func TestOptionConfigurator_Add(t *testing.T) {
 			Short:       "n",
 			Description: "int flag",
 		}).
+		Add(&cli.FloatOpt{
+			Var:         &rate,
+			Long:        "rate",
+			Short:       "r",
+			Description: "float flag",
+		}).
 		Add(&cli.StringsOpt{
 			Var:         &files,
 			Long:        "files",
 			Short:       "f",
 			Description: "strings flag",
+		}).
+		Add(&cli.IntsOpt{
+			Var:         &backoffs,
+			Long:        "backoffs",
+			Description: "ints flag",
 		}).
 		Add(&cli.DurationOpt{
 			Var:         &interval,
@@ -410,10 +539,19 @@ func TestOptionConfigurator_Add(t *testing.T) {
 		t.Fatalf("Command.Options().Add() %v", err)
 	}
 
-	for _, key := range []string{"label", "enable", "num", "files", "interval"} {
+	for _, key := range []string{"label", "enable", "num", "rate", "files", "backoffs", "interval"} {
 		_, err := cmd.FlagSet.Lookup(key)
 		if err != nil {
 			t.Fatalf("failed to option add. %s not found", key)
 		}
 	}
+}
+
+func TestParseError_Error(t *testing.T) {
+	t.Run("simple return msg", func(t *testing.T) {
+		err := &cli.ParseError{Message: "parse error"}
+		if err.Error() != "parse error" {
+			t.Errorf("make sure ParseError.Error() just return message")
+		}
+	})
 }

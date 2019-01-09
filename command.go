@@ -92,8 +92,6 @@ type ParseError struct {
 func (e *ParseError) Error() string { return e.Message }
 
 func (c *Command) parse(args []string) (remain []string, err error) {
-	var onParsing *token
-
 	for {
 		if len(args) == 0 {
 			break
@@ -102,45 +100,47 @@ func (c *Command) parse(args []string) (remain []string, err error) {
 		tk := toToken(args[0])
 		switch tk.kind {
 		case tkFlag:
-			// --foo --bar
-			if onParsing != nil {
-				return nil, &ParseError{fmt.Sprintf("flag %s <-- %s value not provided", onParsing.value, tk.value)}
-			}
-			onParsing = &tk
-		case tkArgument:
-			if c.isBoolFlag(onParsing) {
-				if err = c.handleFlag(onParsing.flagName, "true", true); err != nil {
+			if c.isBoolFlag(&tk) {
+				err = c.handleFlag(tk.flagName, "true", true)
+				if len(args) == 1 {
+					// last flag is bool (cmd get -v)
 					break
 				}
-				if tk.value == "true" {
-					// verbose true
-				} else {
-					// verbose arg
-					remain = append(remain, tk.value)
+				next := toToken(args[1])
+				if next.kind == tkArgument && next.value == "true" {
+					// --verbose true
+					args = args[1:]
 				}
-				onParsing = nil
 				break
 			}
-			if onParsing != nil {
-				if onParsing.kind != tkFlag {
-					panic("logic error")
-				}
-				err = c.handleFlag(onParsing.flagName, tk.value, false)
-				onParsing = nil
+
+			if len(args) == 1 {
+				err = &ParseError{fmt.Sprintf("flag %s <-- value not provided", tk.value)}
 				break
 			}
+			next := toToken(args[1])
+			if next.kind != tkArgument {
+				err = &ParseError{fmt.Sprintf("flag %s <-- %s value not provided", tk.value, next.value)}
+				break
+			}
+			err = c.handleFlag(tk.flagName, next.value, false)
+			args = args[1:]
+		case tkArgument:
 			remain = append(remain, tk.value)
 		case tkFlagWithValue:
 			err = c.handleFlag(tk.flagName, tk.flagValue, c.isBoolFlag(&tk))
 		case tkMultiFlag:
-			if onParsing != nil {
-				return nil, &ParseError{fmt.Sprintf("flag %s <-- %s value not provided", onParsing.value, tk.value)}
-			}
-			for _, f := range tk.flagName {
-				if err = c.handleFlag(string(f), "true", true); err != nil {
+			n := len(tk.flagName)
+			for i := 0; i < n-1; i++ {
+				if err = c.handleFlag(string(tk.flagName[i]), "true", true); err != nil {
 					break
 				}
 			}
+			// allow last flag take arg
+			// delegate handling last flag
+			// -sSLo out arg -> -sSL -o out arg
+			arg := "-" + string(tk.flagName[n-1])
+			args = append(args[:1], append([]string{arg}, args[1:]...)...)
 		case tkTermination:
 			return append(remain, args[1:]...), nil
 		default:
@@ -152,17 +152,7 @@ func (c *Command) parse(args []string) (remain []string, err error) {
 		args = args[1:]
 	}
 
-	if onParsing == nil {
-		return remain, nil
-	}
-
-	// last flag is bool (cmd get -v)
-	if c.isBoolFlag(onParsing) {
-		return remain, c.handleFlag(onParsing.flagName, "true", true)
-	}
-
-	// last flag no arument (cmd get --label)
-	return nil, &ParseError{fmt.Sprintf("flag %s <-- value not provided", onParsing.value)}
+	return remain, nil
 }
 
 func (c *Command) handleFlag(name, value string, boolFlag bool) error {
@@ -284,25 +274,9 @@ type OptionConfigurator struct {
 	cmd *Command
 }
 
-type optionKind int
-
-const (
-	optKindString optionKind = iota
-	optKindInt
-	optKindBool
-	optKindStrings
-	optKindDuration
-)
-
-type optionProvider interface {
-	kind() optionKind
+type FlagProvider interface {
+	Flag() *flags.Flag
 }
-
-func (*StringOpt) kind() optionKind   { return optKindString }
-func (*IntOpt) kind() optionKind      { return optKindInt }
-func (*BoolOpt) kind() optionKind     { return optKindBool }
-func (*StringsOpt) kind() optionKind  { return optKindStrings }
-func (*DurationOpt) kind() optionKind { return optKindDuration }
 
 type StringOpt struct {
 	Var         *string
@@ -311,6 +285,12 @@ type StringOpt struct {
 	Default     string
 	Description string
 	Aliases     []string
+}
+
+func (o *StringOpt) Flag() *flags.Flag {
+	*o.Var = o.Default
+	v := (*flags.StringVar)(o.Var)
+	return &flags.Flag{Long: o.Long, Short: o.Short, Description: o.Description, Aliases: o.Aliases, Var: v}
 }
 
 type IntOpt struct {
@@ -322,6 +302,27 @@ type IntOpt struct {
 	Aliases     []string
 }
 
+func (o *IntOpt) Flag() *flags.Flag {
+	*o.Var = o.Default
+	v := (*flags.IntVar)(o.Var)
+	return &flags.Flag{Long: o.Long, Short: o.Short, Description: o.Description, Aliases: o.Aliases, Var: v}
+}
+
+type FloatOpt struct {
+	Var         *float64
+	Long        string
+	Short       string
+	Default     float64
+	Description string
+	Aliases     []string
+}
+
+func (o *FloatOpt) Flag() *flags.Flag {
+	*o.Var = o.Default
+	v := (*flags.FloatVar)(o.Var)
+	return &flags.Flag{Long: o.Long, Short: o.Short, Description: o.Description, Aliases: o.Aliases, Var: v}
+}
+
 type BoolOpt struct {
 	Var         *bool
 	Long        string
@@ -329,6 +330,12 @@ type BoolOpt struct {
 	Default     bool
 	Description string
 	Aliases     []string
+}
+
+func (o *BoolOpt) Flag() *flags.Flag {
+	*o.Var = o.Default
+	v := (*flags.BoolVar)(o.Var)
+	return &flags.Flag{Long: o.Long, Short: o.Short, Description: o.Description, Aliases: o.Aliases, Var: v}
 }
 
 type StringsOpt struct {
@@ -340,6 +347,27 @@ type StringsOpt struct {
 	Aliases     []string
 }
 
+func (o *StringsOpt) Flag() *flags.Flag {
+	*o.Var = o.Default
+	v := (*flags.StringsVar)(o.Var)
+	return &flags.Flag{Long: o.Long, Short: o.Short, Description: o.Description, Aliases: o.Aliases, Var: v, AllowMultipleTimesSet: true}
+}
+
+type IntsOpt struct {
+	Var         *[]int
+	Long        string
+	Short       string
+	Default     []int
+	Description string
+	Aliases     []string
+}
+
+func (o *IntsOpt) Flag() *flags.Flag {
+	*o.Var = o.Default
+	v := (*flags.IntsVar)(o.Var)
+	return &flags.Flag{Long: o.Long, Short: o.Short, Description: o.Description, Aliases: o.Aliases, Var: v, AllowMultipleTimesSet: true}
+}
+
 type DurationOpt struct {
 	Var         *time.Duration
 	Long        string
@@ -349,40 +377,17 @@ type DurationOpt struct {
 	Aliases     []string
 }
 
-func (c *OptionConfigurator) Add(provider optionProvider) *OptionConfigurator {
-	if c.Err != nil {
-		return c
-	}
+func (o *DurationOpt) Flag() *flags.Flag {
+	*o.Var = o.Default
+	v := (*flags.DurationVar)(o.Var)
+	return &flags.Flag{Long: o.Long, Short: o.Short, Description: o.Description, Aliases: o.Aliases, Var: v}
+}
+
+func (c *OptionConfigurator) Add(provider FlagProvider) *OptionConfigurator {
 	current := c.cmd
 	for {
 		fs := current.FlagSet
-		switch provider.kind() {
-		case optKindString:
-			opt := provider.(*StringOpt)
-			*opt.Var = opt.Default
-			v := (*flags.StringVar)(opt.Var)
-			c.Err = fs.Add(&flags.Flag{Long: opt.Long, Short: opt.Short, Description: opt.Description, Aliases: opt.Aliases, Var: v})
-		case optKindInt:
-			opt := provider.(*IntOpt)
-			*opt.Var = opt.Default
-			v := (*flags.IntVar)(opt.Var)
-			c.Err = fs.Add(&flags.Flag{Long: opt.Long, Short: opt.Short, Description: opt.Description, Aliases: opt.Aliases, Var: v})
-		case optKindBool:
-			opt := provider.(*BoolOpt)
-			*opt.Var = opt.Default
-			v := (*flags.BoolVar)(opt.Var)
-			c.Err = fs.Add(&flags.Flag{Long: opt.Long, Short: opt.Short, Description: opt.Description, Aliases: opt.Aliases, Var: v})
-		case optKindStrings:
-			opt := provider.(*StringsOpt)
-			*opt.Var = opt.Default
-			v := (*flags.StringSliceVar)(opt.Var)
-			c.Err = fs.Add(&flags.Flag{Long: opt.Long, Short: opt.Short, Description: opt.Description, Aliases: opt.Aliases, Var: v, AllowMultipleTimesSet: true})
-		case optKindDuration:
-			opt := provider.(*DurationOpt)
-			*opt.Var = opt.Default
-			v := (*flags.DurationVar)(opt.Var)
-			c.Err = fs.Add(&flags.Flag{Long: opt.Long, Short: opt.Short, Description: opt.Description, Aliases: opt.Aliases, Var: v})
-		}
+		c.Err = fs.Add(provider.Flag())
 		if c.Err != nil {
 			return c
 		}

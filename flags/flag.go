@@ -69,6 +69,17 @@ func (iv *IntVar) Set(s string) error {
 	return nil
 }
 
+type FloatVar float64
+
+func (fv *FloatVar) Set(s string) error {
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return err
+	}
+	*fv = FloatVar(f)
+	return nil
+}
+
 type BooleanVar interface {
 	Var
 	SetBool(bool) error
@@ -90,10 +101,21 @@ func (bv *BoolVar) SetBool(b bool) error {
 	return nil
 }
 
-type StringSliceVar []string
+type StringsVar []string
 
-func (sv *StringSliceVar) Set(s string) error {
+func (sv *StringsVar) Set(s string) error {
 	*sv = append(*sv, s)
+	return nil
+}
+
+type IntsVar []int
+
+func (iv *IntsVar) Set(s string) error {
+	i, err := strconv.Atoi(s)
+	if err != nil {
+		return err
+	}
+	*iv = append(*iv, i)
 	return nil
 }
 

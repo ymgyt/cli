@@ -2,6 +2,16 @@
 cli
 ===
 
+|godoc| |goreport| |codecov|
+
+.. |godoc| image:: https://godoc.org/github.com/ymgyt/cli?status.svg
+    :target: https://godoc.org/github.com/ymgyt/cli
+
+.. |goreport| image:: https://goreportcard.com/badge/github.com/ymgyt/cli
+    :target: https://goreportcard.com/report/github.com/ymgyt/cli
+
+.. |codecov| image:: https://codecov.io/gh/ymgyt/cli/branch/master/graph/badge.svg
+  :target: https://codecov.io/gh/ymgyt/cli
 
 Usage
 =====
