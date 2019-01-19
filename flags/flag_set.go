@@ -102,6 +102,9 @@ func (fs *FlagSet) Merge(o *FlagSet) error {
 }
 
 func (fs *FlagSet) lasyInit() {
+	if fs == nil {
+		fs = &FlagSet{}
+	}
 	fs.once.Do(func() {
 		fs.RWMutex = &sync.RWMutex{}
 	})
