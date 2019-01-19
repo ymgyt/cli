@@ -55,7 +55,20 @@ func HelpFunc() func(io.Writer, *Command) {
 				if i == 0 {
 					b.WriteString("\nOptions")
 				}
-				b.WriteString("\n" + indent + fmt.Sprintf("-%s,--%-*s: %s", f.Short, len(longestFlag), f.Long, f.Description))
+				short := f.Short
+				if short == "" {
+					short = "   " // space for minus char ,
+				} else {
+					short = "-" + short + ","
+				}
+				long := f.Long
+				if long == "" {
+					long = strings.Repeat("", len(longestFlag)+2) // for minus minus
+				} else {
+					long = fmt.Sprintf("--%-*s", len(longestFlag), f.Long)
+				}
+
+				b.WriteString("\n" + indent + fmt.Sprintf("%s %s: %s", short, long, f.Description))
 			}
 			b.WriteString("\n")
 		}
