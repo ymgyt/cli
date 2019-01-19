@@ -13,11 +13,17 @@ import (
 )
 
 type Command struct {
-	Name    string
-	Aliases []string
-	Help    func(io.Writer)
-	Run     func(context.Context, *Command, []string)
-	FlagSet *flags.FlagSet
+	Name      string
+	Aliases   []string
+	ShortDesc string
+	LongDesc  string
+	Help      func(io.Writer, *Command)
+	Run       func(context.Context, *Command, []string)
+	FlagSet   *flags.FlagSet
+
+	Stdin  io.Reader
+	Stdout io.Writer
+	Stderr io.Writer
 
 	parent      *Command
 	subCommands []*Command
@@ -29,9 +35,11 @@ func (c *Command) Execute(ctx context.Context) {
 }
 
 func (c *Command) ExecuteWithArgs(ctx context.Context, args []string) {
+	c.lasyInit()
 	remain, err := c.Parse(args)
 	if err != nil {
-		panic(err)
+		c.handleParseErr(err)
+		return
 	}
 	var sub *Command
 	if len(remain) > 0 {
@@ -78,7 +86,28 @@ func (c *Command) lasyInit() {
 		if c.FlagSet == nil {
 			c.FlagSet = &flags.FlagSet{}
 		}
+		if c.Stdin == nil {
+			c.Stdin = os.Stdin
+		}
+		if c.Stdout == nil {
+			c.Stdout = os.Stdout
+		}
+		if c.Stderr == nil {
+			c.Stderr = os.Stderr
+		}
+		if c.Help == nil {
+			c.Help = c.DefaultHelp()
+		}
+		if c.Run == nil {
+			c.Run = func(_ context.Context, _ *Command, _ []string) {
+				c.Help(c.Stderr, c)
+			}
+		}
 	})
+}
+
+func (c *Command) DefaultHelp() func(io.Writer, *Command) {
+	return HelpFunc()
 }
 
 func (c *Command) Parse(args []string) (remain []string, err error) {
@@ -86,10 +115,23 @@ func (c *Command) Parse(args []string) (remain []string, err error) {
 }
 
 type ParseError struct {
-	Message string
+	Message  string
+	FlagName string
 }
 
 func (e *ParseError) Error() string { return e.Message }
+
+func (c *Command) handleParseErr(err error) {
+	perr, ok := err.(*ParseError)
+	if ok {
+		// help flagはdefaultでsupportする
+		if perr.FlagName == "help" {
+			c.Help(c.Stderr, c)
+			return
+		}
+	}
+	fmt.Fprintf(c.Stderr, "parse error: %s\n", err)
+}
 
 func (c *Command) parse(args []string) (remain []string, err error) {
 	for {
@@ -115,12 +157,12 @@ func (c *Command) parse(args []string) (remain []string, err error) {
 			}
 
 			if len(args) == 1 {
-				err = &ParseError{fmt.Sprintf("flag %s <-- value not provided", tk.value)}
+				err = &ParseError{Message: fmt.Sprintf("flag %s <-- value not provided", tk.value), FlagName: tk.flagName}
 				break
 			}
 			next := toToken(args[1])
 			if next.kind != tkArgument {
-				err = &ParseError{fmt.Sprintf("flag %s <-- %s value not provided", tk.value, next.value)}
+				err = &ParseError{Message: fmt.Sprintf("flag %s <-- %s value not provided", tk.value, next.value), FlagName: tk.flagName}
 				break
 			}
 			err = c.handleFlag(tk.flagName, next.value, false)
@@ -144,7 +186,7 @@ func (c *Command) parse(args []string) (remain []string, err error) {
 		case tkTermination:
 			return append(remain, args[1:]...), nil
 		default:
-			err = &ParseError{fmt.Sprintf("unsupported flag: %v", tk.value)}
+			err = &ParseError{Message: fmt.Sprintf("unsupported flag: %v", tk.value)}
 		}
 		if err != nil {
 			return nil, err
@@ -158,22 +200,22 @@ func (c *Command) parse(args []string) (remain []string, err error) {
 func (c *Command) handleFlag(name, value string, boolFlag bool) error {
 	fs, err := c.FlagSet.LookupAll(name)
 	if err != nil || len(fs) == 0 {
-		return &ParseError{fmt.Sprintf("flag %s undefined", name)}
+		return &ParseError{Message: fmt.Sprintf("flag %s undefined", name)}
 	}
 
 	for _, f := range fs {
 		if boolFlag {
 			if f.IsBool() {
 				if err := f.Set(value); err != nil {
-					return &ParseError{fmt.Sprintf("error while set bool flag value %s -> %s: %s ", name, value, err)}
+					return &ParseError{Message: fmt.Sprintf("error while set bool flag value %s -> %s: %s ", name, value, err)}
 				}
 			} else {
-				return &ParseError{fmt.Sprintf("flag %s is not bool flag", name)}
+				return &ParseError{Message: fmt.Sprintf("flag %s is not bool flag", name)}
 			}
 			continue
 		}
 		if err := f.Set(value); err != nil {
-			return &ParseError{fmt.Sprintf("error while set flag value %s -> %s: %s", name, value, err)}
+			return &ParseError{Message: fmt.Sprintf("error while set flag value %s -> %s: %s", name, value, err)}
 		}
 	}
 	return nil
@@ -194,7 +236,7 @@ func (c *Command) isBoolFlag(tk *token) bool {
 func (c *Command) lookupFlag(name string) (*flags.Flag, error) {
 	flag, err := c.FlagSet.Lookup(name)
 	if err != nil {
-		return nil, &ParseError{fmt.Sprintf("flag %s undefined", name)}
+		return nil, &ParseError{Message: fmt.Sprintf("flag %s undefined", name)}
 	}
 	return flag, nil
 }

@@ -101,6 +101,12 @@ func (fs *FlagSet) Merge(o *FlagSet) error {
 	return nil
 }
 
+func (fs *FlagSet) Traverse(fn func(f *Flag)) {
+	for _, f := range fs.Flags {
+		fn(f)
+	}
+}
+
 func (fs *FlagSet) lasyInit() {
 	fs.once.Do(func() {
 		fs.RWMutex = &sync.RWMutex{}
