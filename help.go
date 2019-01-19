@@ -12,7 +12,7 @@ import (
 func HelpFunc() func(io.Writer, *Command) {
 
 	var longestSubcmd string
-	sort := func(subs []*Command) []string {
+	sortCmds := func(subs []*Command) []string {
 		var names = make([]string, 0, len(subs))
 		for _, sub := range subs {
 			if len(sub.Name) > len(longestSubcmd) {
@@ -28,7 +28,7 @@ func HelpFunc() func(io.Writer, *Command) {
 		var b strings.Builder
 		b.WriteString(c.LongDesc + "\n")
 
-		sorted := sort(c.subCommands)
+		sorted := sortCmds(c.subCommands)
 		indent := "  "
 		if len(sorted) > 0 {
 			indent := "  "
@@ -49,6 +49,9 @@ func HelpFunc() func(io.Writer, *Command) {
 					longestFlag = f.Long
 				}
 				fs = append(fs, f)
+			})
+			sort.Slice(fs, func(i, j int) bool {
+				return fs[i].Name() < fs[j].Name()
 			})
 
 			for i, f := range fs {
