@@ -29,6 +29,7 @@ func (c *Command) Execute(ctx context.Context) {
 }
 
 func (c *Command) ExecuteWithArgs(ctx context.Context, args []string) {
+	c.lasyInit()
 	remain, err := c.Parse(args)
 	if err != nil {
 		panic(err)
