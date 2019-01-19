@@ -55,19 +55,22 @@ func HelpFunc() func(io.Writer, *Command) {
 				if i == 0 {
 					b.WriteString("\nOptions")
 				}
+				long := f.Long
+				if long == "" {
+					long = strings.Repeat(" ", len(longestFlag)+2) // for minus minus
+				} else {
+					long = fmt.Sprintf("--%-*s", len(longestFlag), f.Long)
+				}
 				short := f.Short
 				if short == "" {
 					short = "   " // space for minus char ,
 				} else {
-					short = "-" + short + ","
+					delimiter := ","
+					if f.Long == "" {
+						delimiter = " "
+					}
+					short = "-" + short + delimiter
 				}
-				long := f.Long
-				if long == "" {
-					long = strings.Repeat("", len(longestFlag)+2) // for minus minus
-				} else {
-					long = fmt.Sprintf("--%-*s", len(longestFlag), f.Long)
-				}
-
 				b.WriteString("\n" + indent + fmt.Sprintf("%s %s: %s", short, long, f.Description))
 			}
 			b.WriteString("\n")
