@@ -68,13 +68,13 @@ func TestCommand_Execute(t *testing.T) {
 		}
 	})
 
-	t.Run("parse error panic", func(t *testing.T) {
+	t.Run("parse error not panic", func(t *testing.T) {
 		root := &cli.Command{Name: "root"}
 		var label string
 		root.Options().Add(&cli.StringOpt{Long: "label", Var: &label})
 		defer func() {
-			if err := recover(); err == nil {
-				t.Errorf("parse error should panic")
+			if err := recover(); err != nil {
+				t.Errorf("parse error should not panic")
 			}
 		}()
 		root.ExecuteWithArgs(context.Background(), []string{"--label"})
