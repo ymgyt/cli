@@ -9,6 +9,7 @@ import (
 	"github.com/ymgyt/cli/flags"
 )
 
+// TODO test
 func HelpFunc() func(io.Writer, *Command) {
 
 	var longestSubcmd string
@@ -44,7 +45,7 @@ func HelpFunc() func(io.Writer, *Command) {
 		} else {
 			var longestFlag string
 			var fs []*flags.Flag
-			c.FlagSet.Traverse(func(f *flags.Flag) {
+			c.flagSet.Traverse(func(f *flags.Flag) {
 				if len(f.Long) > len(longestFlag) {
 					longestFlag = f.Long
 				}
