@@ -9,10 +9,11 @@ import (
 	"github.com/ymgyt/cli/flags"
 )
 
+// TODO test
 func HelpFunc() func(io.Writer, *Command) {
 
 	var longestSubcmd string
-	sort := func(subs []*Command) []string {
+	sortCmds := func(subs []*Command) []string {
 		var names = make([]string, 0, len(subs))
 		for _, sub := range subs {
 			if len(sub.Name) > len(longestSubcmd) {
@@ -28,7 +29,7 @@ func HelpFunc() func(io.Writer, *Command) {
 		var b strings.Builder
 		b.WriteString(c.LongDesc + "\n")
 
-		sorted := sort(c.subCommands)
+		sorted := sortCmds(c.subCommands)
 		indent := "  "
 		if len(sorted) > 0 {
 			indent := "  "
@@ -44,18 +45,37 @@ func HelpFunc() func(io.Writer, *Command) {
 		} else {
 			var longestFlag string
 			var fs []*flags.Flag
-			c.FlagSet.Traverse(func(f *flags.Flag) {
+			c.flagSet.Traverse(func(f *flags.Flag) {
 				if len(f.Long) > len(longestFlag) {
 					longestFlag = f.Long
 				}
 				fs = append(fs, f)
+			})
+			sort.Slice(fs, func(i, j int) bool {
+				return fs[i].Name() < fs[j].Name()
 			})
 
 			for i, f := range fs {
 				if i == 0 {
 					b.WriteString("\nOptions")
 				}
-				b.WriteString("\n" + indent + fmt.Sprintf("-%s,--%-*s: %s", f.Short, len(longestFlag), f.Long, f.Description))
+				long := f.Long
+				if long == "" {
+					long = strings.Repeat(" ", len(longestFlag)+2) // for minus minus
+				} else {
+					long = fmt.Sprintf("--%-*s", len(longestFlag), f.Long)
+				}
+				short := f.Short
+				if short == "" {
+					short = "   " // space for minus char ,
+				} else {
+					delimiter := ","
+					if f.Long == "" {
+						delimiter = " "
+					}
+					short = "-" + short + delimiter
+				}
+				b.WriteString("\n" + indent + fmt.Sprintf("%s %s: %s", short, long, f.Description))
 			}
 			b.WriteString("\n")
 		}

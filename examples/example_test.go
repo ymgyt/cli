@@ -1,81 +1,120 @@
 package examples_test
 
 import (
+	"bytes"
 	"context"
-	"os"
-	"text/template"
-	"time"
+	"fmt"
+	"io"
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
 
 	"github.com/ymgyt/cli"
 )
 
-func ExampleCommand_ExecuteWithArgs() {
-	opts := struct {
-		Export, Verbose, Recursive bool
-		Label, Selector, Sort      string
-		Max, Min                   int
-		Interval                   time.Duration
-		Outs                       []string
-	}{}
+type pod struct {
+	showHelp bool
+	level    int
+}
 
-	app := &cli.Command{
-		Name: "app",
+func (pod *pod) run(ctx context.Context, cmd *cli.Command, args []string) {
+	if pod.showHelp {
+		fmt.Fprintln(cmd.Stdout, "pod help message")
+		return
 	}
 
-	sub := &cli.Command{
-		Name: "sub",
+	fmt.Fprintf(cmd.Stdout, "get pod level=%d\n", pod.level)
+}
+
+type rs struct {
+	label string
+}
+
+func (rs *rs) run(ctx context.Context, cmd *cli.Command, args []string) {
+	fmt.Fprintf(cmd.Stdout, "get replicaset label=%s\n", rs.label)
+}
+
+func TestRealCase(t *testing.T) {
+	buildCmd := func(stdin io.Reader, stdout, stderr io.Writer) *cli.Command {
+		root := &cli.Command{
+			Name:      "clictl",
+			ShortDesc: "cli example command",
+			LongDesc:  "when in the go, do as gophers do",
+			Stdin:     stdin, Stdout: stdout, Stderr: stderr,
+		}
+
+		versionCmd := &cli.Command{
+			Name:  "version",
+			Stdin: stdin, Stdout: stdout, Stderr: stderr,
+			Run: func(_ context.Context, cmd *cli.Command, args []string) {
+				fmt.Fprintln(cmd.Stdout, "v9.9.9")
+			},
+		}
+
+		getCmd := &cli.Command{
+			Name:      "get",
+			ShortDesc: "get resources",
+			LongDesc:  "get long desc...",
+			Stdin:     stdin, Stdout: stdout, Stderr: stderr,
+		}
+
+		pod := &pod{}
+		podCmd := &cli.Command{
+			Name:      "pod",
+			ShortDesc: "get pod resources",
+			LongDesc:  "get pod long desc...",
+			Run:       pod.run,
+			Stdin:     stdin, Stdout: stdout, Stderr: stderr,
+		}
+		err := podCmd.Options().
+			Add(&cli.BoolOpt{Var: &pod.showHelp, Long: "help", Short: "h", Description: "print this"}).
+			Add(&cli.IntOpt{Var: &pod.level, Long: "level", Short: "l", Default: 1}).Err
+		if err != nil {
+			panic(err)
+		}
+
+		rs := &rs{}
+		rsCmd := &cli.Command{
+			Name:    "replicaset",
+			Aliases: []string{"rs"},
+			Run:     rs.run,
+			Stdin:   stdin, Stdout: stdout, Stderr: stderr,
+		}
+
+		return root.
+			AddCommand(versionCmd).
+			AddCommand(getCmd.
+				AddCommand(podCmd).
+				AddCommand(rsCmd))
 	}
 
-	subsub := &cli.Command{
-		Name: "subsub",
-		Run: func(_ context.Context, _ *cli.Command, _ []string) {
-			err := template.Must(template.New("").Parse(`
-export:    {{.Export}}
-verbose:   {{.Verbose}}
-recursive: {{.Recursive}}
-label:     {{.Label}}
-selector:  {{.Selector}}
-sort:      {{.Sort}}
-max:       {{.Max}}
-min:       {{.Min}}
-interval:  {{.Interval}}
-outs:      {{.Outs}}`)).Execute(os.Stdout, &opts)
-			if err != nil {
-				panic(err)
-			}
+	tests := map[string]struct {
+		args    []string
+		wantOut string
+		wantErr string
+	}{
+		"get pod 1": {
+			args:    []string{"get", "pod", "--level=2"},
+			wantOut: "get pod level=2\n",
+		},
+		"show version": {
+			args:    []string{"version"},
+			wantOut: "v9.9.9\n",
 		},
 	}
 
-	err := subsub.Options().
-		Add(&cli.BoolOpt{Var: &opts.Export, Long: "export"}).
-		Add(&cli.BoolOpt{Var: &opts.Verbose, Long: "verbose", Short: "v"}).
-		Add(&cli.BoolOpt{Var: &opts.Recursive, Long: "recursive", Short: "R"}).
-		Add(&cli.StringOpt{Var: &opts.Label, Long: "label"}).
-		Add(&cli.StringOpt{Var: &opts.Selector, Long: "selector", Short: "s"}).
-		Add(&cli.StringOpt{Var: &opts.Sort, Long: "sort", Default: "desc"}).
-		Add(&cli.IntOpt{Var: &opts.Max, Long: "max", Aliases: []string{"limit"}}).
-		Add(&cli.IntOpt{Var: &opts.Min, Long: "min", Default: 10}).
-		Add(&cli.DurationOpt{Var: &opts.Interval, Long: "interval"}).
-		Add(&cli.StringsOpt{Var: &opts.Outs, Long: "outs"}).Err
-
-	if err != nil {
-		panic(err)
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
+			cmd := buildCmd(nil, stdout, stderr)
+			cmd.ExecuteWithArgs(context.Background(), tc.args)
+			gotOut, gotErr := stdout.String(), stderr.String()
+			if diff := cmp.Diff(gotOut, tc.wantOut); diff != "" {
+				t.Fatalf("command output does not mathc. (-got +want)%s", diff)
+			}
+			if diff := cmp.Diff(gotErr, tc.wantErr); diff != "" {
+				t.Fatalf("command err output does not mathc. (-got +want)%s", diff)
+			}
+		})
 	}
-
-	app.
-		AddCommand(sub.AddCommand(subsub)).
-		ExecuteWithArgs(context.Background(), []string{
-			"--export", "--label=app", "--outs=aaa.yml", "sub", "-vR", "-s", "match", "subsub", "--limit", "100", "--interval=10s", "--outs=bbb.yml"})
-
-	// Output:
-	// export:    true
-	// verbose:   true
-	// recursive: true
-	// label:     app
-	// selector:  match
-	// sort:      desc
-	// max:       100
-	// min:       10
-	// interval:  10s
-	// outs:      [aaa.yml bbb.yml]
 }

@@ -33,6 +33,13 @@ func (f Flag) HasName(name string) bool {
 	return false
 }
 
+func (f Flag) Name() string {
+	if f.Long != "" {
+		return f.Long
+	}
+	return f.Short
+}
+
 func (f *Flag) Set(s string) error {
 	if f.IsSet && !f.AllowMultipleTimesSet {
 		return ErrMulitipleTimesSet
