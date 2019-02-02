@@ -88,6 +88,8 @@ func parse(lexer *lexer, cmd Commander, ctx *context) {
 		parseMultiFlag(tk, lexer, cmd, ctx)
 	case tkTermination:
 		parseTermination(lexer, cmd, ctx)
+	case tkInvalid:
+		ctx.err = &Error{Flag: tk.raw}
 	}
 
 	parse(lexer, cmd, ctx)
@@ -273,24 +275,4 @@ func (l *lexer) readAllAsLiteral() []string {
 	remain := l.args[l.current:]
 	l.current = len(l.args)
 	return remain
-}
-
-func (tk tokenKind) String() string {
-	switch tk {
-	case tkFlag:
-		return "flag"
-	case tkFlagWithValue:
-		return "flagWithValue"
-	case tkArgument:
-		return "argment"
-	case tkTermination:
-		return "termination"
-	case tkMultiFlag:
-		return "multiFlag"
-	case tkInvalid:
-		return "invalid"
-	case tkEnd:
-		return "end"
-	}
-	return ""
 }

@@ -24,6 +24,21 @@ func TestFlag_HasName(t *testing.T) {
 	})
 }
 
+func TestFlag_Name(t *testing.T) {
+	t.Run("long name take precedence over short name", func(t *testing.T) {
+		f := &flags.Flag{Long: "label", Short: "l"}
+		got, want := f.Name(), "label"
+		if got != want {
+			t.Errorf("flag.Name() does not match. got %s; want %s", got, want)
+		}
+		f = &flags.Flag{Short: "l"}
+		got, want = f.Name(), "l"
+		if got != want {
+			t.Errorf("short name does not match. got %s; want %s", got, want)
+		}
+	})
+}
+
 func TestFlag_Set(t *testing.T) {
 	t.Run("Set correctly recored", func(t *testing.T) {
 		var label string
@@ -52,6 +67,18 @@ func TestFlag_Set(t *testing.T) {
 			t.Errorf("multiple set should return ErrMulitipleTimesSet if now allowd")
 		}
 	})
+}
+
+func TestFlag_IsBool(t *testing.T) {
+	var b bool
+	// bv := (*flags.BoolVar)(&b)
+	if !(&flags.Flag{Var: (*flags.BoolVar)(&b)}).IsBool() {
+		t.Error("bool Flag.IsBool() does not work")
+	}
+	var s string
+	if (&flags.Flag{Var: (*flags.StringVar)(&s)}).IsBool() {
+		t.Error("string Flag.IsBool() return true incorrectly")
+	}
 }
 
 func TestStringVar_Set(t *testing.T) {

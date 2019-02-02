@@ -32,25 +32,16 @@ type FlagSet struct {
 // if flag Name(Long, Short, Aliases) conflict already exists flags, returns ErrFlagAlreadyExists.
 func (fs *FlagSet) Add(f *Flag) error {
 	fs.lasyInit()
-	name := f.Long
-	if name == "" {
-		name = f.Short
-	}
+	name := f.Name()
 	if name == "" {
 		return ErrFlagNameRequired
 	}
 	found, err := fs.Lookup(name)
+	if found != nil {
+		return ErrFlagAlreadyExists
+	}
 	if err == ErrFlagNotFound {
 		// ok
-	} else if err != nil {
-		return err
-	}
-
-	// bool and non-bool flags are not compatible.
-	if found != nil {
-		if found.IsBool() != f.IsBool() {
-			return ErrBoolAndNonBoolFlagNotCompatible
-		}
 	}
 
 	fs.Lock()
@@ -74,31 +65,6 @@ func (fs *FlagSet) Lookup(name string) (*Flag, error) {
 		}
 	}
 	return nil, ErrFlagNotFound
-}
-
-func (fs *FlagSet) LookupAll(name string) ([]*Flag, error) {
-	fs.lasyInit()
-	var ret []*Flag
-	fs.RLock()
-	defer fs.RUnlock()
-	for _, f := range fs.Flags {
-		if f.HasName(name) {
-			ret = append(ret, f)
-		}
-	}
-	return ret, nil
-}
-
-func (fs *FlagSet) Merge(o *FlagSet) error {
-	if o == nil {
-		return nil
-	}
-	for _, f := range o.Flags {
-		if err := fs.Add(f); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (fs *FlagSet) Traverse(fn func(f *Flag)) {

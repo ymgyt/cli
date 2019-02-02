@@ -8,6 +8,13 @@ import (
 	"github.com/ymgyt/cli/parser"
 )
 
+func TestNew(t *testing.T) {
+	p := parser.New(&fakeCmd{})
+	if p == nil {
+		t.Error("parser.New() return nil")
+	}
+}
+
 type fakeCmd struct {
 	name      string
 	subs      []*fakeCmd
@@ -98,6 +105,10 @@ func TestParser_Parse(t *testing.T) {
 			args:   []string{"arg"},
 			checks: check(hasArgs("arg")),
 		},
+		"args contains '-'": {
+			args:   []string{"arg", "-"},
+			checks: check(hasArgs("arg", "-")),
+		},
 		"sub command": {
 			args:   []string{"sub"},
 			checks: check(hasCmds("sub")),
@@ -118,6 +129,10 @@ func TestParser_Parse(t *testing.T) {
 			args:   []string{"--label=app"},
 			checks: check(hasFlags(flag("label", "app"))),
 		},
+		"single short flag with value": {
+			args:   []string{"-n=10"},
+			checks: check(hasFlags(flag("n", "10"))),
+		},
 		"single bool flag with value": {
 			args:   []string{"--verbose=true"},
 			checks: check(hasFlags(boolFlag("verbose", true))),
@@ -129,6 +144,10 @@ func TestParser_Parse(t *testing.T) {
 		"multi flag": {
 			args:   []string{"-sSf"},
 			checks: check(hasFlags(boolFlag("s", true), boolFlag("S", true), boolFlag("f", true))),
+		},
+		"multi flag contains not bool one": {
+			args:   []string{"-sSX"},
+			checks: check(hasErr(&parser.Error{})),
 		},
 		"command and flags": {
 			args: []string{"--log", "warn", "sub", "--label=ops", "-v", "subsub", "--exclude", ".git", "arg"},
@@ -149,6 +168,14 @@ func TestParser_Parse(t *testing.T) {
 		},
 		"invalid bool value": {
 			args:   []string{"--verbose=XtrueX"},
+			checks: check(hasErr(&parser.Error{})),
+		},
+		"empty arg ignored": {
+			args:   []string{"", "--label", "app", ""},
+			checks: check(hasFlags(flag("label", "app"))),
+		},
+		"multi flag with value not supported": {
+			args:   []string{"-sSO=xxx"},
 			checks: check(hasErr(&parser.Error{})),
 		},
 	}
@@ -179,5 +206,12 @@ func TestParser_Parse(t *testing.T) {
 				check(t, result, err)
 			}
 		})
+	}
+}
+
+func TestError_Error(t *testing.T) {
+	err := &parser.Error{Flag: "label", Msg: "message"}
+	if err.Error() == "" {
+		t.Fatal("empty error message")
 	}
 }

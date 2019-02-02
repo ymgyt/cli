@@ -40,7 +40,10 @@ func (c *Command) ExecuteWithArgs(ctx context.Context, args []string) {
 		c.handleParseErr(err)
 		return
 	}
+	c.ExecuteWithParseResult(ctx, pr)
+}
 
+func (c *Command) ExecuteWithParseResult(ctx context.Context, pr *parser.Result) {
 	var runCmd = c
 	for _, sub := range pr.Commands() {
 		if runCmd == nil {
@@ -127,7 +130,7 @@ func (c *Command) lasyInit() {
 }
 
 func (c *Command) DefaultHelp() func(io.Writer, *Command) {
-	return HelpFunc()
+	return HelpFunc
 }
 
 func (c *Command) Parse(args []string) (*parser.Result, error) {
