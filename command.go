@@ -12,21 +12,21 @@ import (
 )
 
 type Command struct {
-	Name      string
-	Aliases   []string
-	ShortDesc string
-	LongDesc  string
-	Help      func(io.Writer, *Command)
-	Run       func(context.Context, *Command, []string)
+	Name        string
+	Aliases     []string
+	ShortDesc   string
+	LongDesc    string
+	Help        func(io.Writer, *Command)
+	Run         func(context.Context, *Command, []string)
+	SubCommands []*Command
 
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
 
-	flagSet     *flags.FlagSet
-	parent      *Command
-	subCommands []*Command
-	onceInit    sync.Once
+	flagSet  *flags.FlagSet
+	parent   *Command
+	onceInit sync.Once
 }
 
 func (c *Command) Execute(ctx context.Context) {
