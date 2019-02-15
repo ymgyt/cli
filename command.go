@@ -154,6 +154,7 @@ type commander struct {
 
 func (c *commander) Name() string { return c.c.Name }
 func (c *commander) LookupSubCommand(name string) (parser.Commander, bool) {
+	c.c.lasyInit()
 	sub := c.c.Lookup(name)
 	if sub == nil {
 		return nil, false
@@ -161,6 +162,7 @@ func (c *commander) LookupSubCommand(name string) (parser.Commander, bool) {
 	return &commander{c: sub}, true
 }
 func (c *commander) IsBoolFlag(name string) bool {
+	c.c.lasyInit()
 	// まず自分のflagsetをみにいく
 	f, err := c.c.flagSet.Lookup(name)
 	if err == nil {
