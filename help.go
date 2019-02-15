@@ -28,7 +28,7 @@ func HelpFunc(w io.Writer, c *Command) {
 	var b strings.Builder
 	b.WriteString(c.LongDesc + "\n")
 
-	sorted := sortCmds(c.subCommands)
+	sorted := sortCmds(c.SubCommands)
 	indent := "  "
 	if len(sorted) > 0 {
 		indent := "  "

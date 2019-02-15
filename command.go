@@ -65,12 +65,12 @@ func (c *Command) AddCommand(sub *Command) *Command {
 		panic(fmt.Sprintf("%s already exists", sub.Name))
 	}
 	sub.parent = c
-	c.subCommands = append(c.subCommands, sub)
+	c.SubCommands = append(c.SubCommands, sub)
 	return c
 }
 
 func (c *Command) Lookup(name string) *Command {
-	for _, sub := range c.subCommands {
+	for _, sub := range c.SubCommands {
 		if sub.Name == name {
 			return sub
 		}
@@ -168,7 +168,7 @@ func (c *commander) IsBoolFlag(name string) bool {
 	if err == nil {
 		return f.IsBool()
 	}
-	for _, sub := range c.c.subCommands {
+	for _, sub := range c.c.SubCommands {
 		if (&commander{c: sub}).IsBoolFlag(name) {
 			return true
 		}
