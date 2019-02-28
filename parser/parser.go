@@ -21,11 +21,8 @@ func (r *Result) Flags(cmd string) []*Flag {
 }
 func (r *Result) AllFlags() []*Flag {
 	var fs []*Flag
-	// root commandはargumentには現れないので自分で補ってやる.
-	// real arg: root -v sub xxx
-	// os.Exit(cmd.Execute(os.Args[1:]))
-	for _, cmd := range append([]string{r.rootCmdName}, r.commands...) {
-		fs = append(fs, r.Flags(cmd)...)
+	for _, fss := range r.flagMap {
+		fs = append(fs, fss...)
 	}
 	return fs
 }
