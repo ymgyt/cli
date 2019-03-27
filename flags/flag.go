@@ -3,11 +3,17 @@ package flags
 import (
 	"errors"
 	"strconv"
+	"strings"
 	"time"
+)
+
+const (
+	defaultDelimiter = ","
 )
 
 var (
 	ErrMulitipleTimesSet = errors.New("multiple times set")
+	ErrInvalidShortFlag  = errors.New("invalid short flag name")
 )
 
 type Flag struct {
@@ -19,6 +25,7 @@ type Flag struct {
 	IsSet                 bool
 	Raw                   string
 	AllowMultipleTimesSet bool
+	Delimiter             string
 }
 
 func (f Flag) HasName(name string) bool {
@@ -46,7 +53,21 @@ func (f *Flag) Set(s string) error {
 	}
 	f.IsSet = true
 	f.Raw = s
+	if multi, ok := f.Var.(MultiVar); ok {
+		delimiter := f.Delimiter
+		if delimiter == "" {
+			delimiter = defaultDelimiter
+		}
+		return multi.SetMulti(s, delimiter)
+	}
 	return f.Var.Set(s)
+}
+
+func (f *Flag) Validate() error {
+	if f.Short != "" && len(f.Short) > 1 {
+		return ErrInvalidShortFlag
+	}
+	return nil
 }
 
 func (f *Flag) IsBool() bool {
@@ -56,6 +77,11 @@ func (f *Flag) IsBool() bool {
 
 type Var interface {
 	Set(string) error
+}
+
+type MultiVar interface {
+	Var
+	SetMulti(v string, delimiter string) error
 }
 
 type StringVar string
@@ -115,6 +141,19 @@ func (sv *StringsVar) Set(s string) error {
 	return nil
 }
 
+func (sv *StringsVar) SetMulti(s, delimiter string) error {
+	for _, v := range strings.Split(s, delimiter) {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+		if err := sv.Set(v); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type IntsVar []int
 
 func (iv *IntsVar) Set(s string) error {
@@ -123,6 +162,19 @@ func (iv *IntsVar) Set(s string) error {
 		return err
 	}
 	*iv = append(*iv, i)
+	return nil
+}
+
+func (iv *IntsVar) SetMulti(s, delimiter string) error {
+	for _, v := range strings.Split(s, delimiter) {
+		v := strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+		if err := iv.Set(v); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

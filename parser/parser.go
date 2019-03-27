@@ -20,7 +20,7 @@ func (r *Result) Flags(cmd string) []*Flag {
 	return r.flagMap[cmd]
 }
 func (r *Result) AllFlags() []*Flag {
-	var fs []*Flag
+	var fs []*Flag //nolint: prealloc
 	for _, fss := range r.flagMap {
 		fs = append(fs, fss...)
 	}
