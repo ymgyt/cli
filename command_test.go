@@ -222,8 +222,8 @@ func TestRealCase(t *testing.T) {
 		wantErr string
 	}{
 		"get pod 1": {
-			args:    []string{"get", "pod", "--level=2"},
-			wantOut: "get pod level=2\n",
+			args:    []string{"get", "pod", "--level=2", "--nums=100,200"},
+			wantOut: "get pod level=2 numbers=[100 200]\n",
 		},
 		"show version": {
 			args:    []string{"version"},
@@ -260,7 +260,7 @@ func (pod *pod) run(ctx context.Context, cmd *cli.Command, args []string) {
 		return
 	}
 
-	fmt.Fprintf(cmd.Stdout, "get pod level=%d\n", pod.level)
+	fmt.Fprintf(cmd.Stdout, "get pod level=%d numbers=%v\n", pod.level, pod.numbers)
 }
 
 type rs struct {
@@ -271,6 +271,7 @@ func (rs *rs) run(ctx context.Context, cmd *cli.Command, args []string) {
 	fmt.Fprintf(cmd.Stdout, "get replicaset label=%s\n", rs.label)
 }
 
+// nolint: gochecknoglobals
 var buildCmd = func(stdin io.Reader, stdout, stderr io.Writer) *cli.Command {
 	root := &cli.Command{
 		Name:      "clictl",
@@ -326,4 +327,3 @@ var buildCmd = func(stdin io.Reader, stdout, stderr io.Writer) *cli.Command {
 			AddCommand(podCmd).
 			AddCommand(rsCmd))
 }
-

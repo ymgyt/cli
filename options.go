@@ -89,12 +89,13 @@ type StringsOpt struct {
 	Default     []string
 	Description string
 	Aliases     []string
+	Delimiter   string
 }
 
 func (o *StringsOpt) Flag() *flags.Flag {
 	*o.Var = o.Default
 	v := (*flags.StringsVar)(o.Var)
-	return &flags.Flag{Long: o.Long, Short: o.Short, Description: o.Description, Aliases: o.Aliases, Var: v, AllowMultipleTimesSet: true}
+	return &flags.Flag{Long: o.Long, Short: o.Short, Description: o.Description, Aliases: o.Aliases, Var: v, AllowMultipleTimesSet: true, Delimiter: o.Delimiter}
 }
 
 type IntsOpt struct {
@@ -104,12 +105,13 @@ type IntsOpt struct {
 	Default     []int
 	Description string
 	Aliases     []string
+	Delimiter   string
 }
 
 func (o *IntsOpt) Flag() *flags.Flag {
 	*o.Var = o.Default
 	v := (*flags.IntsVar)(o.Var)
-	return &flags.Flag{Long: o.Long, Short: o.Short, Description: o.Description, Aliases: o.Aliases, Var: v, AllowMultipleTimesSet: true}
+	return &flags.Flag{Long: o.Long, Short: o.Short, Description: o.Description, Aliases: o.Aliases, Var: v, AllowMultipleTimesSet: true, Delimiter: o.Delimiter}
 }
 
 type DurationOpt struct {

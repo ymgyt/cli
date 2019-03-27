@@ -42,6 +42,8 @@ func (fs *FlagSet) Add(f *Flag) error {
 	}
 	if err == ErrFlagNotFound {
 		// ok
+	} else if err != nil {
+		return err
 	}
 
 	fs.Lock()

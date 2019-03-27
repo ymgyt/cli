@@ -191,6 +191,31 @@ func TestStringsVar_Set(t *testing.T) {
 			t.Errorf("(-got +want)\n%s", diff)
 		}
 	})
+	t.Run("multi var", func(t *testing.T) {
+		var ss []string
+		ssv := (*flags.StringsVar)(&ss)
+		if err := ssv.SetMulti("aaa, bbb", ","); err != nil {
+			t.Fatalf("StringsVar.SetMulti() %v", err)
+		}
+		got, want := ss, []string{"aaa", "bbb"}
+		if diff := cmp.Diff(got, want); diff != "" {
+			t.Errorf("(-got +want)\n%s", diff)
+		}
+	})
+	t.Run("multi var multi times", func(t *testing.T) {
+		var ss []string
+		ssv := (*flags.StringsVar)(&ss)
+		if err := ssv.SetMulti("aaa, bbb", ","); err != nil {
+			t.Fatalf("StringsVar.SetMulti() %v", err)
+		}
+		if err := ssv.SetMulti(",ccc, ddd  ,", ","); err != nil {
+			t.Fatalf("StringsVar.SetMulti() %v", err)
+		}
+		got, want := ss, []string{"aaa", "bbb", "ccc", "ddd"}
+		if diff := cmp.Diff(got, want); diff != "" {
+			t.Errorf("(-got +want)\n%s", diff)
+		}
+	})
 }
 
 func TestIntsVar_Set(t *testing.T) {
@@ -215,6 +240,31 @@ func TestIntsVar_Set(t *testing.T) {
 		_, nsv := intsVar()
 		if err := nsv.Set("invalid"); err == nil {
 			t.Error("want error, gut no error")
+		}
+	})
+	t.Run("multi var", func(t *testing.T) {
+		var ns []int
+		nsv := (*flags.IntsVar)(&ns)
+		if err := nsv.SetMulti("100, 200", ","); err != nil {
+			t.Fatalf("IntsVar.SetMulti() %v", err)
+		}
+		got, want := ns, []int{100, 200}
+		if diff := cmp.Diff(got, want); diff != "" {
+			t.Errorf("(-got +want)\n%s", diff)
+		}
+	})
+	t.Run("multi var muti times", func(t *testing.T) {
+		var ns []int
+		nsv := (*flags.IntsVar)(&ns)
+		if err := nsv.SetMulti("100, 200", ","); err != nil {
+			t.Fatalf("IntsVar.SetMulti() %v", err)
+		}
+		if err := nsv.SetMulti(",300, 400,", ","); err != nil {
+			t.Fatalf("IntsVar.SetMulti() %v", err)
+		}
+		got, want := ns, []int{100, 200, 300, 400}
+		if diff := cmp.Diff(got, want); diff != "" {
+			t.Errorf("(-got +want)\n%s", diff)
 		}
 	})
 }
