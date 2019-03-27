@@ -13,6 +13,7 @@ const (
 
 var (
 	ErrMulitipleTimesSet = errors.New("multiple times set")
+	ErrInvalidShortFlag  = errors.New("invalid short flag name")
 )
 
 type Flag struct {
@@ -60,6 +61,13 @@ func (f *Flag) Set(s string) error {
 		return multi.SetMulti(s, delimiter)
 	}
 	return f.Var.Set(s)
+}
+
+func (f *Flag) Validate() error {
+	if f.Short != "" && len(f.Short) > 1 {
+		return ErrInvalidShortFlag
+	}
+	return nil
 }
 
 func (f *Flag) IsBool() bool {

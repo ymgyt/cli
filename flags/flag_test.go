@@ -69,6 +69,27 @@ func TestFlag_Set(t *testing.T) {
 	})
 }
 
+func TestFlag_Validate(t *testing.T) {
+	tests := map[string]struct {
+		flag *flags.Flag
+		err  error
+	}{
+		"invalid short flag": {
+			flag: &flags.Flag{Short: "xy"},
+			err:  flags.ErrInvalidShortFlag,
+		},
+	}
+
+	for desc, tc := range tests {
+		t.Run(desc, func(t *testing.T) {
+			got, want := tc.flag.Validate(), tc.err
+			if got != want {
+				t.Errorf("Flag.Validate(). got %v, want %v", got, want)
+			}
+		})
+	}
+}
+
 func TestFlag_IsBool(t *testing.T) {
 	var b bool
 	// bv := (*flags.BoolVar)(&b)
