@@ -2,6 +2,7 @@ package prompt_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io/ioutil"
 	"testing"
@@ -45,12 +46,20 @@ func TestSession_Prompt(t *testing.T) {
 	t.Run("timeout", func(t *testing.T) {
 		in := &custom{}
 		p := prompt.New().SetReader(in).SetWriter(ioutil.Discard).Require("yes").Timeout(100 * time.Millisecond)
-		ok, err := p.Prompt()
-		if ok {
-			t.Fatal("want timeout error, but got ok")
-		}
+		_, err := p.Prompt()
 		if err != prompt.ErrTimeout {
 			t.Fatalf("want timeout error, but got %v", err)
+		}
+	})
+
+	t.Run("respect context", func(t *testing.T) {
+		in := &custom{}
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+		p := prompt.New().SetReader(in).SetWriter(ioutil.Discard).Context(ctx).Timeout(1 * time.Second)
+		_, err := p.Prompt()
+		if err != context.DeadlineExceeded {
+			t.Fatalf("want context.DeadlineExceeded, but got %v", err)
 		}
 	})
 }

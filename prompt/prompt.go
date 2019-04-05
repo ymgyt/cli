@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -22,6 +23,7 @@ func New() *Session {
 }
 
 type Session struct {
+	ctx             context.Context
 	in              io.Reader
 	out             io.Writer
 	displayMessage  string
@@ -57,6 +59,11 @@ func (s *Session) Timeout(d time.Duration) *Session {
 	return s
 }
 
+func (s *Session) Context(ctx context.Context) *Session {
+	s.ctx = ctx
+	return s
+}
+
 func (s *Session) SetReader(r io.Reader) *Session {
 	s.in = r
 	return s
@@ -73,6 +80,9 @@ func (s *Session) SetBufferBytes(n int) *Session {
 }
 
 func (s *Session) init() {
+	if s.ctx == nil {
+		s.ctx = context.Background()
+	}
 	if s.in == nil {
 		s.in = os.Stdin
 	}
@@ -101,6 +111,8 @@ func (s *Session) Prompt() (ok bool, err error) {
 	case r = <-ch:
 	case <-time.After(s.timeout):
 		r = result{err: ErrTimeout}
+	case <-s.ctx.Done():
+		r = result{err: s.ctx.Err()}
 	}
 	return r.ok, r.err
 }
